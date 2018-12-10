@@ -105,23 +105,31 @@ def unionml(a, b):
     return union_0, setdiff_1
 
 
+def zero_to_ith_col_no_nans(arr):
+    if arr.shape[1] == 0:
+        return tuple()
+    else:
+        nan_bool_idx = np.isnan(arr[:, :]).any(axis=1)
+        return zero_to_ith_col_no_nans(arr[nan_bool_idx, :-1]) + (arr[~ nan_bool_idx, :].astype(int), )
+
+
 class MultilevelPanel:
     def __init__(self, arr):
-        nans = np.isnan(arr).any(axis=1)
-        # TODO: make it possible to unpack / iterate
-        self.arr_0 = arr[nans, :-1].astype(int)
-        self.arr_1 = arr[~ nans].astype(int)
+        self.arr = arr
+
+    def __getitem__(self, item):
+        return zero_to_ith_col_no_nans(self.arr)[item]
 
     def intersect(self, *others):
         return reduce(
             intersectml,
-            ((self.arr_0, self.arr_1) + tuple((other.arr_0, other.arr_1) for other in others))
+            (tuple(self) + tuple(others))
         )
 
     def union(self, *others):
         return reduce(
             unionml,
-            ((self.arr_0, self.arr_1) + tuple((other.arr_0, other.arr_1) for other in others))
+            (tuple(self) + tuple(others))
         )
 
 
