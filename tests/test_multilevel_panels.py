@@ -2,26 +2,12 @@ import pytest
 
 from multilevel_panels import *
 
+# for testing set operations
 a = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
 b = np.array([[1, 2, 3], [6, 5, 4]])
 c = np.array([[1, 2, 3], [9, 8, 7]])
 
-
-@pytest.mark.parametrize(
-    'op,args,expected',
-    (
-        (np.intersect1d, (a, b), np.array([[1, 2, 3]])),
-        (np.union1d, (a, b), np.array([[1, 2, 3], [4, 5, 6], [6, 5, 4], [7, 8, 9]])),
-        (np.setdiff1d, (a, b), np.array([[4, 5, 6], [7, 8, 9]])),
-        (np.setxor1d, (a, b), np.array([[4, 5, 6], [6, 5, 4], [7, 8, 9]])),
-    )
-)
-def test_setopnd_functor(op, args, expected):
-    func = setopnd_functor(op)
-    result = func(*args)
-    np.testing.assert_array_equal(expected, result)
-
-
+# for testing multilevel panels with length 2 elements
 A = MultilevelPanel(
     np.array(
         [
@@ -106,7 +92,6 @@ AB_union = MultilevelPanel(
     )
 )
 
-
 ABC_intersect = MultilevelPanel(
     np.array(
         [
@@ -140,6 +125,182 @@ ABC_union = MultilevelPanel(
     )
 )
 
+# for testing multilevel panels with length 3 elements
+X = MultilevelPanel(
+    np.array(
+        [
+            [0, 0, 0],
+            [0, 0, 1],
+            [0, 0, 2],
+            [1, 0, 0],
+            [1, 0, 1],
+            [1, 0, 2],
+            [2, 0, 0],
+            [3, 0, np.nan],
+            [4, np.nan, np.nan],
+            [5, 0, np.nan],
+            [6, np.nan, np.nan],
+        ]
+    )
+)
+
+Y = MultilevelPanel(
+    np.array(
+        [
+            [0, 0, 0],
+            [0, 0, 2],
+            [1, 1, 0],
+            [1, 0, 1],
+            [1, 1, 2],
+            [2, 0, np.nan],
+            [3, 0, 0],
+            [3, 0, 1],
+            [3, 1, 0],
+            [4, np.nan, np.nan],
+            [5, 0, np.nan],
+            [7, np.nan, np.nan],
+        ]
+    )
+)
+
+Z = MultilevelPanel(
+    np.array(
+        [
+            [0, 0, np.nan],
+            [1, 1, 1],
+            [2, 1, 2],
+            [3, 0, 3],
+            [3, 1, 3],
+            [7, np.nan, np.nan],
+            [8, 0, 8],
+            [8, 1, 8],
+            [9, np.nan, np.nan],
+        ]
+    )
+)
+
+XY_intersect = MultilevelPanel(
+    np.array(
+        [
+            [0, 0, 0],
+            [0, 0, 2],
+            [1, 0, 1],
+            [2, 0, 0],
+            [3, 0, 0],
+            [3, 0, 1],
+            [4, np.nan, np.nan],
+            [5, 0, np.nan],
+        ]
+    )
+)
+
+XY_union = MultilevelPanel(
+    np.array(
+        [
+            [0, 0, 0],
+            [0, 0, 1],
+            [0, 0, 2],
+            [1, 0, 0],
+            [1, 0, 1],
+            [1, 0, 2],
+            [1, 1, 0],
+            [1, 1, 2],
+            [2, 0, np.nan],
+            [3, 0, np.nan],
+            [3, 1, 0],
+            [4, np.nan, np.nan],
+            [5, 0, np.nan],
+            [6, np.nan, np.nan],
+            [7, np.nan, np.nan],
+        ]
+    )
+)
+
+XYZ_intersect = MultilevelPanel(
+    np.array(
+        [
+            [0, 0, 0],
+            [0, 0, 2],
+            [7, np.nan, np.nan],
+        ]
+    )
+)
+
+XYZ_union = MultilevelPanel(
+    np.array(
+        [
+            [0, 0, np.nan],
+            [1, 0, 0],
+            [1, 0, 1],
+            [1, 0, 2],
+            [1, 1, 0],
+            [1, 1, 1],
+            [1, 1, 2],
+            [2, 0, np.nan],
+            [2, 1, 2],
+            [3, 0, np.nan],
+            [3, 1, 0],
+            [3, 1, 3],
+            [4, np.nan, np.nan],
+            [5, 0, np.nan],
+            [6, np.nan, np.nan],
+            [7, np.nan, np.nan],
+            [8, 0, 8],
+            [8, 1, 8],
+            [9, np.nan, np.nan],
+        ]
+    )
+)
+
+# for testing multilevel panels with 4 elements
+M = MultilevelPanel(
+    np.array(
+        [
+            [0, 0, 0, 0],
+            [1, 1, 1, 1],
+            [2, 2, 2, np.nan],
+            [3, 3, np.nan, np.nan],
+            [4, np.nan, np.nan, np.nan],
+        ]
+    )
+)
+
+N = MultilevelPanel(
+    np.array(
+        [
+            [0, 0, 0, 0],
+            [2, 2, 2, 2],
+            [3, 3, 3, np.nan],
+            [4, 4, np.nan, np.nan],
+            [5, np.nan, np.nan, np.nan],
+        ]
+    )
+)
+
+MN_intersect = MultilevelPanel(
+    np.array(
+        [
+            [0, 0, 0, 0],
+            [2, 2, 2, 2],
+            [3, 3, 3, np.nan],
+            [4, 4, np.nan, np.nan],
+        ]
+    )
+)
+
+MN_union = MultilevelPanel(
+    np.array(
+        [
+            [0, 0, 0, 0],
+            [1, 1, 1, 1],
+            [2, 2, 2, np.nan],
+            [3, 3, np.nan, np.nan],
+            [4, np.nan, np.nan, np.nan],
+            [5, np.nan, np.nan, np.nan],
+        ]
+    )
+)
+
 
 def set_random_nans(arr, p=0.5, from_col=1):
     """Set sequential right-hand-side elements of rows (selected with probability `p`) of a 2-d array to NaN.
@@ -165,39 +326,109 @@ def set_random_nans(arr, p=0.5, from_col=1):
 
 
 def get_random_mlp(size=(100_000, 2)):
+    # TODO this is still not quite right as the duplicate rows with nans are not removed
     arr = np.unique(np.random.randint(10000, size=size).astype(float), axis=1)
 
     return MultilevelPanel(set_random_nans(arr))
 
 
-def test_intersectml():
-    result_0, result_1 = intersectml(A, B)
+@pytest.mark.parametrize(
+    'op,args,expected',
+    (
+        (np.intersect1d, (a, b, c), np.array([[1, 2, 3]])),
+        (np.union1d, (a, b, c), np.array([[1, 2, 3], [4, 5, 6], [6, 5, 4], [7, 8, 9], [9, 8, 7]])),
+        (np.setdiff1d, (a, b, c), np.array([[4, 5, 6], [7, 8, 9]])),
+    )
+)
+def test_setop2d_variadic_functor(op, args, expected):
+    func = setop2d_variadic_functor(op)
+    result = func(*args)
+    np.testing.assert_array_equal(expected, result)
 
-    np.testing.assert_array_equal(AB_intersect[0], result_0)
-    np.testing.assert_array_equal(AB_intersect[1], result_1)
 
+def test_decompose_and_recompose():
+    arr = np.tril(np.ones((3, 3)))
+    arr[arr == 0] = np.nan
 
-def test_unionml():
-    result_0, result_1 = unionml(A, B)
+    expected = (
+        np.array([[1]]),
+        np.array([[1, 1]]),
+        np.array([[1, 1, 1]]),
+    )
 
-    np.testing.assert_array_equal(AB_union[0], result_0)
-    np.testing.assert_array_equal(AB_union[1], result_1)
+    decomposed = decompose(arr)
+
+    for e, r in zip(expected, decomposed):
+        np.testing.assert_array_equal(e, r)
+
+    recomposed = recompose(decomposed)
+
+    for e, r in zip(arr, recomposed):
+        np.testing.assert_array_equal(e, r)
 
 
 class TestMultilevelPanel:
-    def test_intersect1(self):
-        assert A.intersect1(B) == AB_intersect
-        assert A.intersect1(B).intersect1(C) == ABC_intersect
+    def test_flatten(self):
+        arr = np.array(
+            [
+                [0, 0],
+                [1, np.nan],
+            ]
+        )
 
-    def test_union1(self):
-        assert A.union1(B) == AB_union
-        assert A.union1(B).union1(C) == ABC_union
+        mlp = MultilevelPanel(arr)
 
-    def test_intersectn(self):
-        assert A.intersectn(B, C) == ABC_intersect
+        np.testing.assert_array_equal(
+            np.sort(arr, axis=0),
+            np.sort(mlp.flatten(), axis=0)
+        )
 
-    def unionn(self):
-        assert A.unionn(B, C) == ABC_intersect
+    def test_intersect(self):
+        assert A == A.intersect(A)
+        assert AB_intersect == A.intersect(B)
+        assert ABC_intersect == A.intersect(B, C)
+
+        assert X == X.intersect(X)
+        assert XY_intersect == X.intersect(Y)
+        assert XYZ_intersect == X.intersect(Y, Z)
+
+        assert MN_intersect == M.intersect(N)
+        assert MN_intersect == N.intersect(M)
+
+    def test_union(self):
+        assert A == A.union(A)
+        assert AB_union == A.union(B)
+        assert ABC_union == A.union(B, C)
+
+        assert X == X.union(X)
+        assert XY_union == X.union(Y)
+        assert XYZ_union == X.union(Y, Z)
+
+        assert MN_union == M.union(N)
+        assert MN_union == N.union(M)
+
+    def test_empty_intersection(self):
+        expected = np.empty([0, 4])
+
+        mlp1 = MultilevelPanel(
+            np.array(
+                [
+                    [0, 0, 0, 0],
+                ]
+            )
+        )
+
+        mlp2 = MultilevelPanel(
+            np.array(
+                [
+                    [1, 1, 1, 1],
+                ]
+            )
+        )
+
+        result = mlp1.intersect(mlp2)
+
+        np.testing.assert_array_equal(expected, result.flatten())
 
 
 @pytest.mark.skip
@@ -225,24 +456,3 @@ class TestSetOperationPerformance:
             result_0.shape,
             result_1.shape,
         )
-
-
-def test_decompose_and_recompose():
-    arr = np.tril(np.ones((3, 3)))
-    arr[arr == 0] = np.nan
-
-    expected = (
-        np.array([[1]]),
-        np.array([[1, 1]]),
-        np.array([[1, 1, 1]]),
-    )
-
-    decomposed = decompose(arr)
-
-    for e, r in zip(expected, decomposed):
-        np.testing.assert_array_equal(e, r)
-
-    recomposed = recompose(decomposed)
-
-    for e, r in zip(arr, recomposed):
-        np.testing.assert_array_equal(e, r)

@@ -3,13 +3,17 @@ from functools import reduce
 
 import numpy as np
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+# logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def setopnd_functor(op):
-    """Return a binary function that will perform the passed 1-dimensional set operation on n-dimensional array arguments.
+def setop2d_functor(op):
+    """Return a binary function that will perform the passed 1-dimensional set operation on 2-dimensional array arguments.
     """
-    def setopnd(a, b):
+    if op not in (np.intersect1d, np.union1d, np.setdiff1d):
+        raise ValueError
+
+    def setop2d(a, b):
+        # inspired by https://stackoverflow.com/questions/8317022/get-intersecting-rows-across-two-2d-numpy-arrays
         result = op(
             a.view(
                 [('', a.dtype)] * a.shape[1]
@@ -21,103 +25,128 @@ def setopnd_functor(op):
 
         return result.view(a.dtype).reshape(-1, a.shape[1])
 
-    return setopnd
+    return setop2d
 
 
-intersectnd = setopnd_functor(np.intersect1d)
-unionnd = setopnd_functor(np.union1d)
-setdiffnd = setopnd_functor(np.setdiff1d)
+def setop2d_variadic_functor(op):
+    """Return a variadic version of the function returned by setop2d_functor.
+    """
+    def setop2d_variadic(*args):
+        return reduce(
+            setop2d_functor(op),
+            args
+        )
+
+    return setop2d_variadic
+
+
+intersect2d = setop2d_variadic_functor(np.intersect1d)
+union2d = setop2d_variadic_functor(np.union1d)
+setdiff2d = setop2d_variadic_functor(np.setdiff1d)
+
+
+def get_hi_lo_join(hi, lo):
+    """Return the result of intersecting the higher order columns in hi and lo and filtering lo with this intersection.
+    """
+    logging.debug(f'hi: {hi}')
+    logging.debug(f'lo: {lo}')
+
+    intersection = intersect2d(hi, lo[:, :-1].copy())
+    logging.debug(f'intersection: {intersection}')
+
+    lo_dtype = [('', lo.dtype)] * (lo.shape[1] - 1)
+    hi_dtype = [('', hi.dtype)] * hi.shape[1]
+
+    # convert each 2-dimensional array to a 1-dimensional array of tuples for ease of filtering
+    join_bool_idx = np.isin(
+        lo[:, :-1].copy().view(dtype=lo_dtype).ravel(),
+        hi.view(dtype=hi_dtype).ravel(),
+    )
+
+    join_lo = lo[join_bool_idx]
+    logging.debug(f'join_lo: {join_lo}')
+
+    return join_lo
+
+
+def intersectml_colwise_reduction(a, b):
+    """Perform a recursive multilevel intersect of pairs of 2-dimensional arrays from the sequences a and b.
+    """
+    logging.debug(f'a: {a}')
+    logging.debug(f'b: {b}')
+
+    if len(a) == 1:
+        # note that this returns a 1-tuple
+        return intersect2d(*a, *b),
+    else:
+        join_a_b = get_hi_lo_join(a[-2], b[-1])
+        join_b_a = get_hi_lo_join(b[-2], a[-1])
+
+        intersection_lo = intersect2d(a[-1], b[-1])
+        logging.debug(f'intersection_lo: {intersection_lo}')
+
+        concat_lo = np.concatenate(
+            (
+                intersection_lo,
+                join_a_b.view(int).reshape((join_a_b.shape[0], intersection_lo.shape[1])),
+                join_b_a.view(int).reshape((join_b_a.shape[0], intersection_lo.shape[1])),
+            ),
+            axis=0,
+        )
+        if len(concat_lo) > 0:
+            concat_lo = np.unique(concat_lo, axis=0)
+        logging.debug(f'concat_lo: {concat_lo}')
+
+        intersection_hi = intersectml_colwise_reduction(a[:-1], b[:-1])
+        logging.debug(f'intersection_hi: {intersection_hi}')
+
+        return (*intersection_hi, concat_lo)
 
 
 def intersectml(a, b):
-    # TODO: expand to n-tuples
-    # a and b are 2-tuples of ndarrays where the first element is the highest (most general) level
+    """Intersect a pair of multilevel panels.
+    """
     logging.debug(f'a: {a}')
     logging.debug(f'b: {b}')
-    a_0, a_1 = a
-    b_0, b_1 = b
 
-    intersection_0 = intersectnd(a_0, b_0)
-    logging.debug(f'intersection_0: {intersection_0}')
-    intersection_1 = intersectnd(a_1, b_1)
-    logging.debug(f'intersection_1: {intersection_1}')
+    # produce the decompositions of a and b
+    tup_a = tuple(a)
+    tup_b = tuple(b)
 
-    # returns intersecting level 0 results, that need to be "joined" back to the level 1 results
-    intersection_0_1 = intersectnd(a_0, b_1[:, :-1])
-    logging.debug(f'intersection_0_1: {intersection_0_1}')
-    join_0_1 = b_1[np.in1d(b_1[:, :-1], intersection_0_1)]
-    logging.debug(f'join_0_1: {join_0_1}')
+    return intersectml_colwise_reduction(tup_a, tup_b)
 
-    intersection_1_0 = intersectnd(a_1[:, :-1], b_0)
-    logging.debug(f'intersection_1_0: {intersection_1_0}')
-    join_1_0 = a_1[np.in1d(a_1[:, :-1], intersection_1_0)]
-    logging.debug(f'join_1_0: {join_1_0}')
 
-    # concatenate and deduplicate the 3 wide arrays
-    concat_1 = np.unique(
-        np.concatenate(
-            (
-                intersection_1,
-                join_0_1.view(int).reshape((join_0_1.shape[0], 2)),
-                join_1_0.view(int).reshape((join_1_0.shape[0], 2)),
-            ),
-            axis=0,
-        ),
-        axis=0,
-    )
-    logging.debug(f'concat_1: {concat_1}')
+def get_lo_hi_setdiff(hi, lo):
+    """Return the elements of lo whose higher order columns do not intersect with those in hi.
+    """
+    join_lo = get_hi_lo_join(hi, lo)
 
-    return intersection_0, concat_1
+    setdiff_lo = setdiff2d(lo, join_lo)
+    logging.debug(f'setdiff_lo: {setdiff_lo}')
+
+    return setdiff_lo
+
+
+def unionml_colwise_reduction(unions):
+    """Perform a recursive multilevel union of pairs of 2-dimensional arrays from the sequences a and b.
+    """
+    logging.debug(f'unionml_colwise_reduction: {unions}')
+    if len(unions) == 1:
+        return unions
+    else:
+        return unionml_colwise_reduction(unions[:-1]) + (get_lo_hi_setdiff(unions[-2], unions[-1]), )
 
 
 def unionml(a, b):
-    # a and b are 2-tuples of ndarrays where the first element is the highest (most general) level
-    # TODO: expand to n-tuples
+    """Union a pair of multilevel panels.
+    """
     logging.debug(f'a: {a}')
     logging.debug(f'b: {b}')
-    a_0, a_1 = a
-    b_0, b_1 = b
 
-    union_0 = unionnd(a_0, b_0)
-    logging.debug(f'union_0: {union_0}')
-    union_1 = unionnd(a_1, b_1)
-    logging.debug(f'union_1: {union_1}')
+    # produce a tuple of the unions of each level of a and b
+    unions = tuple(union2d(*tup) for tup in zip(a, b))
 
-    join_1 = union_1[np.in1d(union_1[:, :-1], union_0.view(int).reshape((union_0.shape[0], -1)))]
-    logging.debug(f'join_1: {join_1}')
-
-    setdiff_1 = setdiffnd(union_1, join_1)
-    logging.debug(f'setdiff_1: {setdiff_1}')
-
-    return union_0, setdiff_1
-
-
-def unionml2(a, b):
-    # if a.shape[1] != b.shape[1]:
-    #     raise ValueError
-
-    if a[0].shape[1] == 0:
-        return list()
-
-    else:
-        logging.debug(f'a: {a}')
-        logging.debug(f'b: {b}')
-
-        a_0, a_1 = a[-2:]
-        b_0, b_1 = b[-2:]
-
-        union_0 = unionnd(a_0, b_0)
-        logging.debug(f'union_0: {union_0}')
-        union_1 = unionnd(a_1, b_1)
-        logging.debug(f'union_1: {union_1}')
-
-        join_1 = union_1[np.in1d(union_1[:, :-1], union_0.view(int).reshape((union_0.shape[0], -1)))]
-        logging.debug(f'join_1: {join_1}')
-
-        setdiff_1 = setdiffnd(union_1, join_1)
-        logging.debug(f'setdiff_1: {setdiff_1}')
-
-        return unionml2(a[:-1], b[:-1]) + [(union_0, setdiff_1)]
+    return unionml_colwise_reduction(unions)
 
 
 def decompose(arr):
@@ -140,26 +169,25 @@ def recompose(tup):
 
 class MultilevelPanel:
     def __init__(self, arr):
-        self.arr = arr
+        self._decomposed = decompose(arr)
 
     def __getitem__(self, item):
-        return decompose(self.arr)[item]
+        # this permits doing mlp[n], tuple(mlp), (*mlp), etc., and having the result come from `decompose()`
+        return self._decomposed[item]
 
     def __eq__(self, other):
         # __ne__ is implicit in Python 3, but would need to be defined in Python 2
-        # note that this does not guarantee the compared items are in the same order
+        # note that this does not guarantee the compared multilevel panels are in the same order,
+        # only that they contain the same elements
         if not isinstance(other, type(self)):
             raise TypeError
         else:
-            return all(np.all(s == o) for s, o in zip(decompose(self.arr), decompose(other.arr)))
+            return all(np.all(s == o) for s, o in zip(self, other))
 
-    def intersect1(self, other):
-        return type(self)(recompose(intersectml(self, other)))
+    def flatten(self):
+        return recompose(self._decomposed)
 
-    def union1(self, other):
-        return type(self)(recompose(unionml(self, other)))
-
-    def intersectn(self, *others):
+    def intersect(self, *others):
         return type(self)(
             recompose(
                 reduce(
@@ -169,7 +197,7 @@ class MultilevelPanel:
             )
         )
 
-    def unionn(self, *others):
+    def union(self, *others):
         return type(self)(
             recompose(
                 reduce(
