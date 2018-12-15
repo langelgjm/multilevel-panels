@@ -30,8 +30,8 @@ setdiffnd = setopnd_functor(np.setdiff1d)
 
 
 def intersectml(a, b):
-    # a and b are 2-tuples of ndarrays where the first element is the highest (most general) level
     # TODO: expand to n-tuples
+    # a and b are 2-tuples of ndarrays where the first element is the highest (most general) level
     logging.debug(f'a: {a}')
     logging.debug(f'b: {b}')
     a_0, a_1 = a
@@ -58,27 +58,14 @@ def intersectml(a, b):
         np.concatenate(
             (
                 intersection_1,
-                join_0_1.view(int).reshape((join_0_1.shape[0], -1)),
-                join_1_0.view(int).reshape((join_1_0.shape[0], -1)),
-            ) ,
+                join_0_1.view(int).reshape((join_0_1.shape[0], 2)),
+                join_1_0.view(int).reshape((join_1_0.shape[0], 2)),
+            ),
             axis=0,
         ),
         axis=0,
     )
     logging.debug(f'concat_1: {concat_1}')
-
-    # TODO: not clear to me that this is necessary if we are guaranteed to only have a higher level if no lower level exists
-    # remove rows from intersection_0 that have matching lower levels in result_1
-    # accomplish by a join to get the matching rows, then a set difference to remove them
-    # join_0 = join_by(
-    #     'f0',
-    #     fromrecords(intersection_0),
-    #     fromrecords(
-    #         np.unique(result_1[:, :-1], axis=0)
-    #     ),
-    #     usemask=False,
-    # )
-    # setdiff_0 = setdiffnd(intersection_0, join_0.view(int).reshape((join_0.shape[0], -1)))
 
     return intersection_0, concat_1
 
@@ -97,7 +84,7 @@ def unionml(a, b):
     logging.debug(f'union_1: {union_1}')
 
     join_1 = union_1[np.in1d(union_1[:, :-1], union_0.view(int).reshape((union_0.shape[0], -1)))]
-    logging.debug(f'match_1: {join_1}')
+    logging.debug(f'join_1: {join_1}')
 
     setdiff_1 = setdiffnd(union_1, join_1)
     logging.debug(f'setdiff_1: {setdiff_1}')
@@ -105,12 +92,50 @@ def unionml(a, b):
     return union_0, setdiff_1
 
 
-def zero_to_ith_col_no_nans(arr):
+def unionml2(a, b):
+    # if a.shape[1] != b.shape[1]:
+    #     raise ValueError
+
+    if a[0].shape[1] == 0:
+        return list()
+
+    else:
+        logging.debug(f'a: {a}')
+        logging.debug(f'b: {b}')
+
+        a_0, a_1 = a[-2:]
+        b_0, b_1 = b[-2:]
+
+        union_0 = unionnd(a_0, b_0)
+        logging.debug(f'union_0: {union_0}')
+        union_1 = unionnd(a_1, b_1)
+        logging.debug(f'union_1: {union_1}')
+
+        join_1 = union_1[np.in1d(union_1[:, :-1], union_0.view(int).reshape((union_0.shape[0], -1)))]
+        logging.debug(f'join_1: {join_1}')
+
+        setdiff_1 = setdiffnd(union_1, join_1)
+        logging.debug(f'setdiff_1: {setdiff_1}')
+
+        return unionml2(a[:-1], b[:-1]) + [(union_0, setdiff_1)]
+
+
+def decompose(arr):
     if arr.shape[1] == 0:
         return tuple()
     else:
-        nan_bool_idx = np.isnan(arr[:, :]).any(axis=1)
-        return zero_to_ith_col_no_nans(arr[nan_bool_idx, :-1]) + (arr[~ nan_bool_idx, :].astype(int), )
+        nan_bool_idx = np.isnan(arr).any(axis=1)
+        return decompose(arr[nan_bool_idx, :-1]) + (arr[~ nan_bool_idx, :].astype(int), )
+
+
+def recompose(tup):
+    pad_width = tup[-1].shape[1]
+
+    return np.concatenate(
+        tuple(
+            np.pad(t.astype(float), ((0, 0), (0, pad_width - t.shape[1])), mode='constant', constant_values=np.nan) for t in tup
+        )
+    )
 
 
 class MultilevelPanel:
@@ -118,18 +143,40 @@ class MultilevelPanel:
         self.arr = arr
 
     def __getitem__(self, item):
-        return zero_to_ith_col_no_nans(self.arr)[item]
+        return decompose(self.arr)[item]
 
-    def intersect(self, *others):
-        return reduce(
-            intersectml,
-            (tuple(self) + tuple(others))
+    def __eq__(self, other):
+        # __ne__ is implicit in Python 3, but would need to be defined in Python 2
+        # note that this does not guarantee the compared items are in the same order
+        if not isinstance(other, type(self)):
+            raise TypeError
+        else:
+            return all(np.all(s == o) for s, o in zip(decompose(self.arr), decompose(other.arr)))
+
+    def intersect1(self, other):
+        return type(self)(recompose(intersectml(self, other)))
+
+    def union1(self, other):
+        return type(self)(recompose(unionml(self, other)))
+
+    def intersectn(self, *others):
+        return type(self)(
+            recompose(
+                reduce(
+                    intersectml,
+                    (self, *others)
+                )
+            )
         )
 
-    def union(self, *others):
-        return reduce(
-            unionml,
-            (tuple(self) + tuple(others))
+    def unionn(self, *others):
+        return type(self)(
+            recompose(
+                reduce(
+                    unionml,
+                    (self, *others)
+                )
+            )
         )
 
 
