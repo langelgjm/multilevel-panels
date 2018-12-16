@@ -440,7 +440,7 @@ class TestMultilevelPanel:
         D = MultilevelPanel(
             np.array(
                 [
-                    [1, np.nan, np.nan, np.nan],
+                    [1, np.nan, np.nan],
                 ]
             )
         )
@@ -448,8 +448,8 @@ class TestMultilevelPanel:
         E = MultilevelPanel(
             np.array(
                 [
-                    [1, 6, 4, 1],
-                    [1, 7, 4, 1],
+                    [1, 6, 4],
+                    [1, 7, 4],
                 ]
             )
         )
@@ -482,6 +482,8 @@ class TestMultilevelPanel:
         ([True, False, True, False], True),
         ([True, False, True, True], True),
         ([True, True, True, True], False),
+        ([True, False, False, True], True),
+        ([True, False, False, False, True], True),
     )
 )
 def test_hasgaps(bool_lst, expected):

@@ -40,6 +40,35 @@ union2d = setop2d_variadic_functor(np.union1d)
 setdiff2d = setop2d_variadic_functor(np.setdiff1d)
 
 
+def get_gap_patterns(n):
+    """Return a tuple of integers whose binary representation is like the following regular expression: ^10{m}1$
+    and m = n - 2.
+    """
+    if n < 3:
+        return tuple()
+    else:
+        return get_gap_patterns(n - 1) + ((1 << (n - 1)) + 1, )
+
+
+def hasgaps(bool_lst):
+    """Determine if the passed list of boolean values matches any possible gap pattern for a list of such length.
+    """
+    # assume the input represents a bit array and convert it to an integer
+    val = int(sum(v << i for i, v in enumerate(reversed(bool_lst))))
+
+    gap_patterns = get_gap_patterns(val.bit_length())
+
+    while val:
+        for i, n in enumerate(range(3, val.bit_length() + 1)):
+            # if the value's lower bits matches the gap pattern of corresponding length
+            if (val & ((2 ** n) - 1)) ^ gap_patterns[i] == 0:
+                return True
+        else:
+            val = val >> 1
+
+    return False
+
+
 def get_hi_lo_join(hi, lo):
     """Return the result of intersecting the higher order columns in hi and lo and filtering lo with this intersection.
     """
@@ -122,25 +151,9 @@ def get_lo_hi_setdiff(hi, lo):
     join_lo = get_hi_lo_join(hi, lo)
 
     setdiff_lo = setdiff2d(lo, join_lo)
-    # setdiff_lo = setdiff2d(join_lo, lo)
     logging.debug(f'setdiff_lo: {setdiff_lo}')
 
     return setdiff_lo
-
-
-def hasgaps(bool_lst):
-    # TODO: this is close but need to check for any length pattern of 1s with intervening 0s
-    # assume the input represents a bit array and convert it to an integer
-    val = sum(v << i for i, v in enumerate(reversed(bool_lst)))
-
-    while val:
-        # if bottom 3 bits are equal to 101
-        if (val & 0b111) ^ 0b101 == 0:
-            return True
-        else:
-            val = val >> 1
-
-    return False
 
 
 def unionml_colwise_reduction(unions):
@@ -261,17 +274,3 @@ class MultilevelPanel:
 if __name__ == "__main__":
     import doctest
     doctest.testmod()
-
-# 1. intersect/union lowest level / widest array
-# 2. intersect/union next level / next widest array
-# ... repeat until there is no more array
-# 3. I/U LHS width - 1 with RHS width (will either produce an array of width, or width - 1)
-# 4. I/U RHS width - 1 with LHS width (will either produce an array of width, or width - 1)
-# 5. reconcile the four resulting arrays:
-    # a. if I, results must be as specific as possible (i.e., width takes precedence over width - 1)
-    # b. if U, results must be as general as possible (i.e., width - 1 takes precedence over width)
-
-
-# assumptions
-# numerical values (floats) only
-# input rows are unique
