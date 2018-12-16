@@ -1,6 +1,7 @@
 import logging
 from functools import reduce
 from operator import or_
+from typing import List, Sequence, Tuple
 
 import numpy as np
 
@@ -40,7 +41,7 @@ union2d = setop2d_variadic_functor(np.union1d)
 setdiff2d = setop2d_variadic_functor(np.setdiff1d)
 
 
-def get_gap_patterns(n):
+def get_gap_patterns(n: int) -> Tuple:
     """Return a tuple of integers whose binary representation is like the following regular expression: ^10{m}1$
     and m = n - 2.
     """
@@ -50,7 +51,7 @@ def get_gap_patterns(n):
         return get_gap_patterns(n - 1) + ((1 << (n - 1)) + 1, )
 
 
-def hasgaps(bool_lst):
+def hasgaps(bool_lst: List) -> bool:
     """Determine if the passed list of boolean values matches any possible gap pattern for a list of such length.
     """
     # assume the input represents a bit array and convert it to an integer
@@ -93,7 +94,7 @@ def get_hi_lo_join(hi, lo):
     return join_lo
 
 
-def intersectml_colwise_reduction(a, b):
+def intersectml_colwise_reduction(a: Sequence, b: Sequence):
     """Perform a recursive multilevel intersect of pairs of 2-dimensional arrays from the sequences a and b.
     """
     logging.debug(f'a: {a}')
@@ -156,17 +157,13 @@ def get_lo_hi_setdiff(hi, lo):
     return setdiff_lo
 
 
-def unionml_colwise_reduction(unions):
+def unionml_colwise_reduction(unions: Sequence):
     """Perform a recursive multilevel union of pairs of 2-dimensional arrays from the sequences a and b.
     """
     logging.debug(f'unionml_colwise_reduction: {unions}')
     if len(unions) == 1:
         return unions
     else:
-        # level skipping issue is here
-        if hasgaps([np.any(u) for u in unions]):
-            raise NotImplementedError
-
         return unionml_colwise_reduction(unions[:-1]) + (get_lo_hi_setdiff(unions[-2], unions[-1]), )
 
 
@@ -178,11 +175,14 @@ def unionml(a, b):
 
     # produce a tuple of the unions of each level of a and b
     unions = tuple(union2d(*tup) for tup in zip(a, b))
+    # level skipping issue is here
+    if hasgaps([np.any(u) for u in unions]):
+        raise NotImplementedError
 
     return unionml_colwise_reduction(unions)
 
 
-def decompose(arr, assume_unique=True):
+def decompose(arr: np.ndarray, assume_unique=True) -> Tuple:
     """Convert a 2-d array that may contain sequential row-wise right-hand-side NaNs into a n-tuple representation.
     Each tuple element is an array of shape (r, c), where c is the column index of the original array,
     and r is the number of rows in that column whose entries in further columns (i.e., c + 1, c + 2, etc.)
@@ -203,7 +203,7 @@ def decompose(arr, assume_unique=True):
         return decompose(arr[nan_bool_idx, :-1], assume_unique=assume_unique) + (non_nan, )
 
 
-def recompose(tup):
+def recompose(tup) -> np.ndarray:
     """Convert the output of `decompose()` to a 2-d array that may contain sequential row-wise right-hand-side NaNs.
     Row order of the result is not guaranteed to match the original input order to `decompose()`.
 
@@ -222,13 +222,13 @@ def recompose(tup):
                 ((0, 0), (0, pad_width - t.shape[1])),
                 mode='constant',
                 constant_values=np.nan
-            ) for t in tup
+            ) for t in tup  # type: ignore
         )
     )
 
 
 class MultilevelPanel:
-    def __init__(self, arr):
+    def __init__(self, arr: np.ndarray):
         self._decomposed = decompose(arr)
 
     def __getitem__(self, item):
@@ -250,7 +250,7 @@ class MultilevelPanel:
     def flatten(self):
         return recompose(self._decomposed)
 
-    def intersect(self, *others):
+    def intersect(self, *others: 'MultilevelPanel'):
         return type(self)(
             recompose(
                 reduce(
@@ -260,7 +260,7 @@ class MultilevelPanel:
             )
         )
 
-    def union(self, *others):
+    def union(self, *others: 'MultilevelPanel'):
         return type(self)(
             recompose(
                 reduce(

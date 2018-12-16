@@ -1,6 +1,9 @@
+import logging
+
+import numpy as np
 import pytest
 
-from multilevel_panels import *
+from multilevel_panels import decompose, hasgaps, MultilevelPanel, recompose, setop2d_variadic_functor
 
 # for testing set operations
 a = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
@@ -490,7 +493,7 @@ def test_hasgaps(bool_lst, expected):
     assert expected == hasgaps(bool_lst)
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 class TestMultilevelPanelPerformance:
     size = (100_000, 3)
     n = 100_000
