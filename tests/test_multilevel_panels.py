@@ -434,31 +434,58 @@ class TestMultilevelPanel:
         )
 
         result = mlp1.intersect(mlp2)
-
         np.testing.assert_array_equal(expected, result.flatten())
 
-
-@pytest.mark.xfail
-def test_level_skipping():
-    D = MultilevelPanel(
-        np.array(
-            [
-                [1, np.nan, np.nan],
-            ]
+    def test_level_skipping_raises(self):
+        D = MultilevelPanel(
+            np.array(
+                [
+                    [1, np.nan, np.nan, np.nan],
+                ]
+            )
         )
-    )
 
-    E = MultilevelPanel(
-        np.array(
-            [
-                [1, 6, 4],
-                [1, 7, 4],
-            ]
+        E = MultilevelPanel(
+            np.array(
+                [
+                    [1, 6, 4, 1],
+                    [1, 7, 4, 1],
+                ]
+            )
         )
-    )
 
-    assert D == D.union(E)
-    assert E == D.intersect(E)
+        with pytest.raises(NotImplementedError):
+            assert D == D.union(E)
+
+        with pytest.raises(NotImplementedError):
+            assert E == D.intersect(E)
+
+
+@pytest.mark.parametrize(
+    'bool_lst,expected',
+    (
+        ([], False),
+        ([False], False),
+        ([False, False], False),
+        ([False, True], False),
+        ([True, False], False),
+        ([False, False, False], False),
+        ([False, False, True], False),
+        ([False, True, False], False),
+        ([False, True, True], False),
+        ([True, False, False], False),
+        ([True, False, True], True),
+        ([True, True, False], False),
+        ([True, True, True], False),
+        ([False, True, False, True], True),
+        ([True, True, False, True], True),
+        ([True, False, True, False], True),
+        ([True, False, True, True], True),
+        ([True, True, True, True], False),
+    )
+)
+def test_hasgaps(bool_lst, expected):
+    assert expected == hasgaps(bool_lst)
 
 
 @pytest.mark.skip

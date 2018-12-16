@@ -1,5 +1,6 @@
 import logging
 from functools import reduce
+from operator import or_
 
 import numpy as np
 
@@ -107,6 +108,11 @@ def intersectml(a, b):
     tup_a = tuple(a)
     tup_b = tuple(b)
 
+    elementwise_or = map(or_, [np.any(i) for i in tup_a], [np.any(i) for i in tup_b])
+    # level skipping issue is here
+    if hasgaps(list(elementwise_or)):
+        raise NotImplementedError
+
     return intersectml_colwise_reduction(tup_a, tup_b)
 
 
@@ -122,6 +128,21 @@ def get_lo_hi_setdiff(hi, lo):
     return setdiff_lo
 
 
+def hasgaps(bool_lst):
+    # TODO: this is close but need to check for any length pattern of 1s with intervening 0s
+    # assume the input represents a bit array and convert it to an integer
+    val = sum(v << i for i, v in enumerate(reversed(bool_lst)))
+
+    while val:
+        # if bottom 3 bits are equal to 101
+        if (val & 0b111) ^ 0b101 == 0:
+            return True
+        else:
+            val = val >> 1
+
+    return False
+
+
 def unionml_colwise_reduction(unions):
     """Perform a recursive multilevel union of pairs of 2-dimensional arrays from the sequences a and b.
     """
@@ -130,6 +151,9 @@ def unionml_colwise_reduction(unions):
         return unions
     else:
         # level skipping issue is here
+        if hasgaps([np.any(u) for u in unions]):
+            raise NotImplementedError
+
         return unionml_colwise_reduction(unions[:-1]) + (get_lo_hi_setdiff(unions[-2], unions[-1]), )
 
 
