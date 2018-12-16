@@ -3,8 +3,6 @@ from functools import reduce
 
 import numpy as np
 
-# logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-
 
 def setop2d_functor(op):
     """Return a binary function that will perform the passed 1-dimensional set operation on 2-dimensional array arguments.
@@ -15,12 +13,8 @@ def setop2d_functor(op):
     def setop2d(a, b):
         # inspired by https://stackoverflow.com/questions/8317022/get-intersecting-rows-across-two-2d-numpy-arrays
         result = op(
-            a.view(
-                [('', a.dtype)] * a.shape[1]
-            ).ravel(),
-            b.view(
-                [('', b.dtype)] * b.shape[1]
-            ).ravel(),
+            a.view([('', a.dtype)] * a.shape[1]).ravel(),
+            b.view([('', b.dtype)] * b.shape[1]).ravel(),
         )
 
         return result.view(a.dtype).reshape(-1, a.shape[1])
@@ -122,6 +116,7 @@ def get_lo_hi_setdiff(hi, lo):
     join_lo = get_hi_lo_join(hi, lo)
 
     setdiff_lo = setdiff2d(lo, join_lo)
+    # setdiff_lo = setdiff2d(join_lo, lo)
     logging.debug(f'setdiff_lo: {setdiff_lo}')
 
     return setdiff_lo
@@ -134,6 +129,7 @@ def unionml_colwise_reduction(unions):
     if len(unions) == 1:
         return unions
     else:
+        # level skipping issue is here
         return unionml_colwise_reduction(unions[:-1]) + (get_lo_hi_setdiff(unions[-2], unions[-1]), )
 
 
@@ -149,20 +145,47 @@ def unionml(a, b):
     return unionml_colwise_reduction(unions)
 
 
-def decompose(arr):
+def decompose(arr, assume_unique=True):
+    """Convert a 2-d array that may contain sequential row-wise right-hand-side NaNs into a n-tuple representation.
+    Each tuple element is an array of shape (r, c), where c is the column index of the original array,
+    and r is the number of rows in that column whose entries in further columns (i.e., c + 1, c + 2, etc.)
+    contain only NaNs.
+
+    >>> arr = np.array([[1, 1, 1], [2, 2, np.nan], [3, np.nan, np.nan]])
+    >>> decompose(arr)
+    (array([[3]]), array([[2, 2]]), array([[1, 1, 1]]))
+    """
     if arr.shape[1] == 0:
         return tuple()
     else:
         nan_bool_idx = np.isnan(arr).any(axis=1)
-        return decompose(arr[nan_bool_idx, :-1]) + (arr[~ nan_bool_idx, :].astype(int), )
+        non_nan = arr[~ nan_bool_idx, :].astype(int)
+        if not assume_unique:
+            non_nan = np.unique(non_nan, axis=0)
+
+        return decompose(arr[nan_bool_idx, :-1], assume_unique=assume_unique) + (non_nan, )
 
 
 def recompose(tup):
+    """Convert the output of `decompose()` to a 2-d array that may contain sequential row-wise right-hand-side NaNs.
+    Row order of the result is not guaranteed to match the original input order to `decompose()`.
+
+    >>> arr = np.array([[1, 1, 1], [2, 2, np.nan], [3, np.nan, np.nan]])
+    >>> recompose(decompose(arr))
+    array([[ 3., nan, nan],
+           [ 2.,  2., nan],
+           [ 1.,  1.,  1.]])
+    """
     pad_width = tup[-1].shape[1]
 
     return np.concatenate(
         tuple(
-            np.pad(t.astype(float), ((0, 0), (0, pad_width - t.shape[1])), mode='constant', constant_values=np.nan) for t in tup
+            np.pad(
+                t.astype(float),
+                ((0, 0), (0, pad_width - t.shape[1])),
+                mode='constant',
+                constant_values=np.nan
+            ) for t in tup
         )
     )
 
@@ -183,6 +206,9 @@ class MultilevelPanel:
             raise TypeError
         else:
             return all(np.all(s == o) for s, o in zip(self, other))
+
+    def __repr__(self):
+        return str(self.flatten())
 
     def flatten(self):
         return recompose(self._decomposed)
@@ -208,6 +234,10 @@ class MultilevelPanel:
         )
 
 
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
+
 # 1. intersect/union lowest level / widest array
 # 2. intersect/union next level / next widest array
 # ... repeat until there is no more array
@@ -216,3 +246,8 @@ class MultilevelPanel:
 # 5. reconcile the four resulting arrays:
     # a. if I, results must be as specific as possible (i.e., width takes precedence over width - 1)
     # b. if U, results must be as general as possible (i.e., width - 1 takes precedence over width)
+
+
+# assumptions
+# numerical values (floats) only
+# input rows are unique

@@ -325,11 +325,18 @@ def set_random_nans(arr, p=0.5, from_col=1):
         )
 
 
-def get_random_mlp(size=(100_000, 2)):
-    # TODO this is still not quite right as the duplicate rows with nans are not removed
-    arr = np.unique(np.random.randint(10000, size=size).astype(float), axis=1)
+def get_random_mlp(size, n):
+    arr = np.random.randint(n, size=size).astype(float)
+    rand_nan_arr = set_random_nans(arr)
 
-    return MultilevelPanel(set_random_nans(arr))
+    return MultilevelPanel(
+        recompose(
+            decompose(
+                rand_nan_arr,
+                assume_unique=False,
+            )
+        )
+    )
 
 
 @pytest.mark.parametrize(
@@ -431,28 +438,38 @@ class TestMultilevelPanel:
         np.testing.assert_array_equal(expected, result.flatten())
 
 
-@pytest.mark.skip
-class TestSetOperationPerformance:
-    def test_intersect(self):
-        result_0, result_1 = intersectml(get_random_mlp(), get_random_mlp())
-
-        assert not np.isnan(result_0).any()
-        assert not np.isnan(result_1).any()
-        # assert not np.in1d(result_0, result_1[:, :-1]).any()
-
-        logging.info(
-            result_0.shape,
-            result_1.shape,
+@pytest.mark.xfail
+def test_level_skipping():
+    D = MultilevelPanel(
+        np.array(
+            [
+                [1, np.nan, np.nan],
+            ]
         )
+    )
+
+    E = MultilevelPanel(
+        np.array(
+            [
+                [1, 6, 4],
+                [1, 7, 4],
+            ]
+        )
+    )
+
+    assert D == D.union(E)
+    assert E == D.intersect(E)
+
+
+@pytest.mark.skip
+class TestMultilevelPanelPerformance:
+    size = (100_000, 3)
+    n = 100_000
+
+    def test_intersect(self):
+        result = get_random_mlp(self.size, self.n).intersect(get_random_mlp(self.size, self.n)).flatten()
+        logging.info(result.shape)
 
     def test_union(self):
-        result_0, result_1 = unionml(get_random_mlp(), get_random_mlp())
-
-        assert not np.isnan(result_0).any()
-        assert not np.isnan(result_1).any()
-        # assert not np.in1d(result_0, result_1[:, :-1]).any()
-
-        logging.info(
-            result_0.shape,
-            result_1.shape,
-        )
+        result = get_random_mlp(self.size, self.n).union(get_random_mlp(self.size, self.n)).flatten()
+        logging.info(result.shape)
