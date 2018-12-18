@@ -2,6 +2,9 @@ install:
 	pip install -r requirements.txt
 	pip install .
 
+build:
+	python setup.py bdist_wheel
+
 develop:
 	pip install -r requirements.txt
 	pip install -r dev-requirements.txt
