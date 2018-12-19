@@ -270,6 +270,15 @@ class MultilevelPanel:
             )
         )
 
+    def minus(self, *others: 'MultilevelPanel'):
+        raise NotImplementedError
+
+    def xor(self, *others: 'MultilevelPanel'):
+        raise NotImplementedError
+
+    def choose(self, *others: 'MultilevelPanel', k=1):
+        raise NotImplementedError
+
 
 if __name__ == "__main__":
     import doctest
